@@ -30,7 +30,7 @@ make -j 4
 
 编译完成后使用bin/clang编译
 
-首先打开replace下的1.code
+首先打开replace下的1.code，没有则创建
 
 输入如下内容
 
