@@ -710,9 +710,9 @@ void readAndChoose() {
         retStyle = 0;
         return ;
     }
-    std::fstream file(ReplacePath + "/1.txt", std::fstream::in);
+    std::fstream file(ReplacePath + "/1.code", std::fstream::in);
     if ( !file ) {
-        llvm::errs() << "open 1.txt failed.";
+        llvm::errs() << "open 1.code failed.";
         retStyle = 0;
         return ;
     }
@@ -763,9 +763,9 @@ void writeName(const char *funcName) {
         retStyle = 0;
         return ;
     }
-    std::ofstream file(ReplacePath + "/2.txt", std::ofstream::out | std::ofstream::app);
+    std::ofstream file(ReplacePath + "/2.code", std::ofstream::out | std::ofstream::app);
     if ( !file ) {
-        llvm::errs() << "open 1.txt failed.";
+        llvm::errs() << "open 2.code failed.";
         retStyle = 0;
         return ;
     }
