@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <ios>
+#include <fstream>
 #include "CodeGenModule.h"
 #include "CGBlocks.h"
 #include "CGCUDARuntime.h"
@@ -698,7 +700,84 @@ void CodeGenModule::setTLSMode(llvm::GlobalValue *GV, const VarDecl &D) const {
   GV->setThreadLocalMode(TLM);
 }
 
+int retStyle = -1;
+static std::vector<std::string> word;
+static std::map<std::string, std::string> obfMap;
+void readAndChoose() {
+    std::string ReplacePath = std::getenv("REPATH");
+    if ( ReplacePath.empty() ) {
+        llvm::errs() << "REPATH is empty.";
+        retStyle = 0;
+        return ;
+    }
+    std::fstream file(ReplacePath + "/1.txt", std::fstream::in);
+    if ( !file ) {
+        llvm::errs() << "open 1.txt failed.";
+        retStyle = 0;
+        return ;
+    }
+    file.seekg(0 ,std::fstream::beg);
+    for ( std::string line; std::getline(file, line); ) {
+        if ( line == "0" ) {
+            retStyle = 0;
+        } else if ( line == "1" ) {
+            retStyle = 1;
+        } else if ( line == "2" ) {
+            retStyle = 2;
+        } else {
+            if ( retStyle == 1 ) {
+                SmallString<256> buffer;
+                llvm::raw_svector_ostream out(buffer);
+                unsigned pos = 0;
+                for ( ; pos != line.size(); pos++ ) {
+                    if(line[pos] == ':')
+                        break;
+                }
+                std::string className = line.substr(0, pos);
+                std::string funcName = line.substr(pos + 1);
+                out << className.size() << className << funcName.size() << funcName;
+                std::string name = out.str();
+                llvm::outs() << "mangled name : " << name << "\n";
+                word.push_back(name);
+            } else if ( retStyle == 2 ) {
+                unsigned pos = 0;
+                for ( ; pos != line.size(); pos++ ) {
+                    if(line[pos] == ':')
+                        break;
+                }
+                std::string funcName = line.substr(0, pos);
+                std::string obfName = line.substr(pos + 1);
+                obfMap[funcName] = obfName;
+            } else {
+                return ;
+            }
+        }
+    }
+    file.close();
+}
+
+void writeName(const char *funcName) {
+    std::string ReplacePath = std::getenv("REPATH");
+    if ( ReplacePath.empty() ) {
+        llvm::errs() << "REPATH is empty.";
+        retStyle = 0;
+        return ;
+    }
+    std::ofstream file(ReplacePath + "/2.txt", std::ofstream::out | std::ofstream::app);
+    if ( !file ) {
+        llvm::errs() << "open 1.txt failed.";
+        retStyle = 0;
+        return ;
+    }
+    file << funcName;
+    file.close();
+}
+
 StringRef CodeGenModule::getMangledName(GlobalDecl GD) {
+    if ( retStyle == -1 ) {
+        readAndChoose();
+    }
+
   GlobalDecl CanonicalGD = GD.getCanonicalDecl();
 
   // Some ABIs don't have constructor variants.  Make sure that base and
@@ -742,6 +821,19 @@ StringRef CodeGenModule::getMangledName(GlobalDecl GD) {
       Str = II->getName();
     }
   }
+    if (retStyle == 1) {
+        for(std::vector<std::string>::iterator I = word.begin(); I != word.end(); I++) {
+            if (Str.find(*I) != llvm::StringRef::npos) {
+                writeName(Str.data());
+            }
+        }
+    } else if (retStyle == 2) {
+        for ( auto I = obfMap.begin(); I != obfMap.end(); I++ ) {
+            if (StringRef(I->first) == Str) {
+                Str = StringRef(I->second);
+            }
+        }
+    }
 
   // Keep the first result in the case of a mangling collision.
   auto Result = Manglings.insert(std::make_pair(Str, GD));
