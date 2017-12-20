@@ -46,3 +46,19 @@ ClassName:FucntionName2
 之后执行第一次编译
 
 编译完成后执行replace/replace.py，再执行第二次编译即可
+
+### 效果
+
+替换前
+
+![](./photo/define1.png)
+
+![](./photo/call1.png)
+
+替换后
+
+![](./photo/define2.png)
+
+![](./photo/call2.png)
+
+![](./photo/ida.png)
