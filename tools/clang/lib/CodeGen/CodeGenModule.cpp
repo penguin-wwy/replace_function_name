@@ -728,14 +728,15 @@ void readAndChoose() {
             if ( retStyle == 1 ) {
                 SmallString<256> buffer;
                 llvm::raw_svector_ostream out(buffer);
-                unsigned pos = 0;
-                for ( ; pos != line.size(); pos++ ) {
-                    if(line[pos] == ':')
-                        break;
+                int pos = line.find(":");
+                if (pos == std::string::npos || pos == 0) {
+                    std::string funcName = line.substr(pos + 1);
+                    out << funcName.size() << funcName;
+                } else {
+                    std::string className = line.substr(0, pos);
+                    std::string funcName = line.substr(pos + 1);
+                    out << className.size() << className << funcName.size() << funcName;
                 }
-                std::string className = line.substr(0, pos);
-                std::string funcName = line.substr(pos + 1);
-                out << className.size() << className << funcName.size() << funcName;
                 std::string name = out.str();
                 llvm::outs() << "mangled name : " << name << "\n";
                 word.push_back(name);
@@ -756,20 +757,17 @@ void readAndChoose() {
     file.close();
 }
 
-void writeName(const char *funcName) {
+void writeName(StringRef& funcName) {
     std::string ReplacePath = std::getenv("REPATH");
     if ( ReplacePath.empty() ) {
         llvm::errs() << "REPATH is empty.";
         retStyle = 0;
         return ;
     }
-    std::ofstream file(ReplacePath + "/2.code", std::ofstream::out | std::ofstream::app);
-    if ( !file ) {
-        llvm::errs() << "open 2.code failed.";
-        retStyle = 0;
-        return ;
-    }
-    file << funcName;
+    // 使用标准库会带来乱码问题
+    std::error_code error_info;
+    llvm::raw_fd_ostream file(StringRef(ReplacePath + "/2.code"), error_info, llvm::sys::fs::F_Append);
+    file << funcName << "\n";
     file.close();
 }
 
@@ -824,7 +822,8 @@ StringRef CodeGenModule::getMangledName(GlobalDecl GD) {
     if (retStyle == 1) {
         for(std::vector<std::string>::iterator I = word.begin(); I != word.end(); I++) {
             if (Str.find(*I) != llvm::StringRef::npos) {
-                writeName(Str.data());
+                llvm::outs() << Str << "\n";
+                writeName(Str);
             }
         }
     } else if (retStyle == 2) {

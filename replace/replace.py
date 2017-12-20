@@ -8,8 +8,11 @@ dir_path = os.path.dirname(file_path)
 replace_str = "2\n"
 func_names = []
 with open(os.path.join(dir_path, '2.code'), 'r') as fp:
-    line = fp.readline()
-    func_names.append(line.strip())
+    while True:
+        line = fp.readline()
+        if line.strip() == "":
+            break
+        func_names.append(line.strip())
 for func_name in func_names:
     data = hashlib.md5(func_name).hexdigest()
     md5_str = '_' + data
