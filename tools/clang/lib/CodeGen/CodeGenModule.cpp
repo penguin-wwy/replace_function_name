@@ -58,6 +58,7 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MD5.h"
+#include "llvm/Support/Format.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -702,7 +703,6 @@ void CodeGenModule::setTLSMode(llvm::GlobalValue *GV, const VarDecl &D) const {
 
 int retStyle = -1;
 static std::vector<std::string> word;
-static std::map<std::string, std::string> obfMap;
 void readAndChoose() {
     std::string ReplacePath = std::getenv("REPATH");
     if ( ReplacePath.empty() ) {
@@ -718,56 +718,30 @@ void readAndChoose() {
     }
     file.seekg(0 ,std::fstream::beg);
     for ( std::string line; std::getline(file, line); ) {
-        if ( line == "0" ) {
-            retStyle = 0;
-        } else if ( line == "1" ) {
+        if (line == "1") {
             retStyle = 1;
-        } else if ( line == "2" ) {
-            retStyle = 2;
+            continue;
+        }
+        else if (line == "0") {
+            retStyle = 0;
+            break;
         } else {
-            if ( retStyle == 1 ) {
-                SmallString<256> buffer;
-                llvm::raw_svector_ostream out(buffer);
-                int pos = line.find(":");
-                if (pos == std::string::npos || pos == 0) {
-                    std::string funcName = line.substr(pos + 1);
-                    out << funcName.size() << funcName;
-                } else {
-                    std::string className = line.substr(0, pos);
-                    std::string funcName = line.substr(pos + 1);
-                    out << className.size() << className << funcName.size() << funcName;
-                }
-                std::string name = out.str();
-                llvm::outs() << "mangled name : " << name << "\n";
-                word.push_back(name);
-            } else if ( retStyle == 2 ) {
-                unsigned pos = 0;
-                for ( ; pos != line.size(); pos++ ) {
-                    if(line[pos] == ':')
-                        break;
-                }
-                std::string funcName = line.substr(0, pos);
-                std::string obfName = line.substr(pos + 1);
-                obfMap[funcName] = obfName;
+            SmallString<256> buffer;
+            llvm::raw_svector_ostream out(buffer);
+            int pos = line.find(":");
+            if (pos == std::string::npos || pos == 0) {
+                std::string funcName = line.substr(pos + 1);
+                out << funcName.size() << funcName;
             } else {
-                return ;
+                std::string className = line.substr(0, pos);
+                std::string funcName = line.substr(pos + 1);
+                out << className.size() << className << funcName.size() << funcName;
             }
+            std::string name = out.str();
+            //llvm::outs() << "mangled name : " << name << "\n";
+            word.push_back(name);
         }
     }
-    file.close();
-}
-
-void writeName(StringRef& funcName) {
-    std::string ReplacePath = std::getenv("REPATH");
-    if ( ReplacePath.empty() ) {
-        llvm::errs() << "REPATH is empty.";
-        retStyle = 0;
-        return ;
-    }
-    // 使用标准库会带来乱码问题
-    std::error_code error_info;
-    llvm::raw_fd_ostream file(StringRef(ReplacePath + "/2.code"), error_info, llvm::sys::fs::F_Append);
-    file << funcName << "\n";
     file.close();
 }
 
@@ -822,18 +796,19 @@ StringRef CodeGenModule::getMangledName(GlobalDecl GD) {
     if (retStyle == 1) {
         for(std::vector<std::string>::iterator I = word.begin(); I != word.end(); I++) {
             if (Str.find(*I) != llvm::StringRef::npos) {
-                llvm::outs() << Str << "\n";
-                writeName(Str);
-            }
-        }
-    } else if (retStyle == 2) {
-        for ( auto I = obfMap.begin(); I != obfMap.end(); I++ ) {
-            if (StringRef(I->first) == Str) {
-                Str = StringRef(I->second);
+                SmallString<256> buf;
+                llvm::raw_svector_ostream res(buf);
+                llvm::MD5 hash;
+                hash.update(Str);
+                llvm::MD5::MD5Result retHash;
+                hash.final(retHash);
+                //llvm::outs() << Str << "\n";
+                //llvm::outs() << "_" << llvm::format_hex_no_prefix(Result.high(), 16) << llvm::format_hex_no_prefix(Result.low(), 16) << "\n";
+                res << "_" << llvm::format_hex_no_prefix(retHash.high(), 16) << llvm::format_hex_no_prefix(retHash.low(), 16);
+                Str = res.str();
             }
         }
     }
-
   // Keep the first result in the case of a mangling collision.
   auto Result = Manglings.insert(std::make_pair(Str, GD));
   return FoundStr = Result.first->first();
